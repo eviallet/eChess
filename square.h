@@ -5,6 +5,7 @@
 #include <QString>
 
 static enum {
+    NONE,
     W_PAWN,
     W_ROOK,
     W_KNIGHT,
@@ -19,15 +20,17 @@ static enum {
     B_KING
 } Piece;
 
-class Square : QVariant {
+class Square : public QVariant {
     public:
         static int getSquare(char col, int row);
-        Square(char col, int row, int piece = -1);
+        Square();
+        Square(char col, int row, int piece = NONE);
         QString toString();
         void setPiece(int piece);
         int getPiece();
         int c();
         int r();
+        int getIndex();
     private:
         char col;
         int row;

@@ -3,15 +3,18 @@
 
 #include <QMainWindow>
 #include <QTableView>
-#include "stockfish.h"
-#include "square.h"
 
 #define ROWS 8
 #define COLS 8
+#define SQUARE_SIZE 80
+
+#include "square.h"
+#include "boardmodel.h"
+#include "stockfish.h"
 
 
 namespace Ui {
-class ChessBoardWindow;
+    class ChessBoardWindow;
 }
 
 class ChessBoardWindow : public QMainWindow {
@@ -27,6 +30,7 @@ class ChessBoardWindow : public QMainWindow {
 
         QString game;
         QTableView *boardView;
+        BoardModel *model;
         Square board[COLS*ROWS];
 
     private slots:
@@ -34,7 +38,6 @@ class ChessBoardWindow : public QMainWindow {
         void updateBoard();
         void move(Square from, Square to);
         void think();
-        void click();
         void setDifficulty(int dif);
 };
 

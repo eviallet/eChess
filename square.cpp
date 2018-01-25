@@ -1,5 +1,8 @@
 #include "square.h"
 
+Square::Square() {
+
+}
 
 Square::Square(char col, int row, int piece) {
     this->col = col+'a';
@@ -15,6 +18,11 @@ int Square::getPiece() {
     return piece;
 }
 
+int Square::getIndex() {
+    int column = col-'a';
+    return row*8+column;
+}
+
 int Square::c() {
     return col-'a';
 }
@@ -28,5 +36,8 @@ QString Square::toString() {
 }
 
 int Square::getSquare(char col, int row) {
-    return ;
+    if(col>='a')
+        col-='a';
+    return row*8+col;
 }
+

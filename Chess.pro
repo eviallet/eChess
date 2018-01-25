@@ -27,14 +27,17 @@ SOURCES += \
         main.cpp \
         chessboardwindow.cpp \
     stockfish.cpp \
-    square.cpp
+    square.cpp \
+    boardmodel.cpp
 
 HEADERS += \
         chessboardwindow.h \
     stockfish.h \
-    square.h
+    square.h \
+    boardmodel.h
 
 FORMS += \
         chessboardwindow.ui
 
-RESOURCES +=
+RESOURCES += \
+    res.qrc
