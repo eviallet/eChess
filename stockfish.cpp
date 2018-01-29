@@ -32,7 +32,16 @@ void Stockfish::dataAvailable() {
     QByteArray array = engine->readAll();
     QString received = QString::fromStdString(array.toStdString()).replace("\r","\n");
     for(int i=0; i<received.count("\n");i+=2) {
-        qDebug() << received.section("\n",i,i+1).replace("\n","");
+        QString line = received.section("\n",i,i+1).replace("\n","");
+        //qDebug() << line;
+        if(line.contains("bestmove"))
+            emit(bestMove(line));
+        if(line.contains("readyok"))
+            emit(readyok());
+        if(line.contains("uciok"))
+            emit(uciok());
+        if(line.contains("info"))
+            emit(info(line));
     }
 }
 

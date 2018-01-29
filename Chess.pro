@@ -28,13 +28,15 @@ SOURCES += \
         chessboardwindow.cpp \
     stockfish.cpp \
     square.cpp \
-    boardmodel.cpp
+    boardmodel.cpp \
+    analyzer.cpp
 
 HEADERS += \
         chessboardwindow.h \
     stockfish.h \
     square.h \
-    boardmodel.h
+    boardmodel.h \
+    analyzer.h
 
 FORMS += \
         chessboardwindow.ui

@@ -1,5 +1,5 @@
 <RCC>
-    <qresource prefix="/pieces">
+    <qresource prefix="/">
         <file>pieces/BB.png</file>
         <file>pieces/BK.png</file>
         <file>pieces/BN.png</file>
@@ -12,5 +12,7 @@
         <file>pieces/WP.png</file>
         <file>pieces/WQ.png</file>
         <file>pieces/WR.png</file>
+        <file>circle.png</file>
+        <file>circle_blue.png</file>
     </qresource>
 </RCC>

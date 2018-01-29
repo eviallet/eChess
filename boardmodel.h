@@ -5,6 +5,8 @@
 #include <QModelIndex>
 #include "square.h"
 
+#define SQUARE_SIZE 80
+
 class BoardModel : public QAbstractTableModel {
     public:
         BoardModel();

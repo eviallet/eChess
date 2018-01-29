@@ -12,13 +12,18 @@ static QString cmd_text[] = {
     "ucinewgame"
 };
 
-class Stockfish : QObject {
+class Stockfish : public QObject {
     Q_OBJECT
     public:
         Stockfish(QObject *parent);
 
         void send(QString cmd);
         void setDifficulty(int level);
+    signals:
+        void uciok();
+        void readyok();
+        void bestMove(QString move);
+        void info(QString infos);
     private slots:
         void dataAvailable();
         void engineStarted();

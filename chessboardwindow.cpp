@@ -1,17 +1,31 @@
 #include "chessboardwindow.h"
 #include "ui_chessboardwindow.h"
 
+// TODO save/load FEN
+// TODO handle pawn promotion
+
 ChessBoardWindow::ChessBoardWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::ChessBoardWindow) {
     ui->setupUi(this);
+    /// board setup
     boardView = ui->board;
-    for(int i=0; i<COLS*ROWS; i++)
-        board[i] = Square(i%8,i/8);
+    for(int c=0; c<COLS; c++)
+        for(int r=0; r<ROWS; r++)
+            board[c][r] = Square(c,r);
 
+    /// stockfish setup
+    stockfish = new Stockfish(this);
+    stockfish->send("isready");
+    stockfish->send("uci");
+
+    /// model setup
     model = new BoardModel();
     model->insertColumns(0,8);
     model->insertRows(0,8);
-    for(int i=0; i<COLS*ROWS; i++)
-        model->setData(model->index(i%8,i/8),board[i]);
+    lastClick = NULL;
+    turn = Turn::HUMAN;
+    initBoard();
+
+    /// views setup
     boardView->setModel(model);
     boardView->horizontalHeader()->setVisible(false);
     boardView->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
@@ -22,77 +36,215 @@ ChessBoardWindow::ChessBoardWindow(QWidget *parent) : QMainWindow(parent), ui(ne
     boardView->verticalHeader()->setDefaultSectionSize(SQUARE_SIZE);
     boardView->verticalHeader()->setAutoScroll(false);
     boardView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    boardView->setSelectionMode(QAbstractItemView::SingleSelection);
+    boardView->setSelectionMode(QAbstractItemView::NoSelection);
 
+    /// window setup
     setFixedSize(QSize(
                      ui->board->size().width(),
                      ui->board->size().height()
-                     +ui->mainToolBar->size().height()
                      +ui->statusBar->size().height()));
+    setWindowIcon(QIcon(QPixmap::fromImage(QImage(":/pieces/WN"))));
+    setWindowTitle("ChessOS");
 
-    stockfish = new Stockfish(this);
-    stockfish->send("isready");
-    stockfish->send("uci");
-    initBoard();
+    /// signals/slots
+    connect(ui->actionNouvelle_partie,SIGNAL(triggered()),this,SLOT(initBoard()));
+    connect(ui->actionQuitter,SIGNAL(triggered()),this,SLOT(initBoard()));
+    connect(boardView,SIGNAL(clicked(QModelIndex)),this,SLOT(clicked(QModelIndex)));
+    connect(stockfish,SIGNAL(bestMove(QString)),this,SLOT(bestMove(QString)));
+    connect(stockfish,SIGNAL(info(QString)),this,SLOT(info(QString)));
+    connect(stockfish,SIGNAL(uciok()),this,SLOT(uciok()));
+    connect(stockfish,SIGNAL(readyok()),this,SLOT(readyok()));
 }
 
-/*
-void ChessBoardWindow::click() {
-    move(board[Square::getSquare('e',2)],board[Square::getSquare('e',4)]);
-}
-*/
 
+/// Board management
 void ChessBoardWindow::initBoard() {
-    game = "position startpos moves"; // TODO FEN
+    stockfish->send("ucinewgame");
+    game = "position startpos moves";
 
     for(int i=0; i<COLS; i++) {
-        board[8*(2-1)+i].setPiece(W_PAWN);  // row 2
-        board[8*(7-1)+i].setPiece(B_PAWN);  // row 7
+        board[i][1].setPiece(Piece::W_PAWN);  // row 2
+        board[i][6].setPiece(Piece::B_PAWN);  // row 7
     }
 
-    board[0].setPiece(W_ROOK);      // A1
-    board[1].setPiece(W_KNIGHT);    // B1
-    board[2].setPiece(W_BISHOP);    // ..
-    board[3].setPiece(W_QUEEN);
-    board[4].setPiece(W_KING);
-    board[5].setPiece(W_BISHOP);
-    board[6].setPiece(W_KNIGHT);
-    board[7].setPiece(W_ROOK);      // H1
+    board[-'a'+'a'][0].setPiece(Piece::W_ROOK);   // A1
+    board[-'a'+'b'][0].setPiece(Piece::W_KNIGHT); // B1
+    board[-'a'+'c'][0].setPiece(Piece::W_BISHOP); // ..
+    board[-'a'+'d'][0].setPiece(Piece::W_QUEEN);
+    board[-'a'+'e'][0].setPiece(Piece::W_KING);
+    board[-'a'+'f'][0].setPiece(Piece::W_BISHOP);
+    board[-'a'+'g'][0].setPiece(Piece::W_KNIGHT);
+    board[-'a'+'h'][0].setPiece(Piece::W_ROOK);   // H1
 
-    board[56+0].setPiece(B_ROOK);   // A8
-    board[56+1].setPiece(B_KNIGHT); // B8
-    board[56+2].setPiece(B_BISHOP); // ..
-    board[56+3].setPiece(B_QUEEN);
-    board[56+4].setPiece(B_KING);
-    board[56+5].setPiece(B_BISHOP);
-    board[56+6].setPiece(B_KNIGHT);
-    board[56+7].setPiece(B_ROOK);   // H8
+    board[-'a'+'a'][7].setPiece(Piece::B_ROOK);   // A8
+    board[-'a'+'b'][7].setPiece(Piece::B_KNIGHT); // B8
+    board[-'a'+'c'][7].setPiece(Piece::B_BISHOP); // ..
+    board[-'a'+'d'][7].setPiece(Piece::B_QUEEN);
+    board[-'a'+'e'][7].setPiece(Piece::B_KING);
+    board[-'a'+'f'][7].setPiece(Piece::B_BISHOP);
+    board[-'a'+'g'][7].setPiece(Piece::B_KNIGHT);
+    board[-'a'+'h'][7].setPiece(Piece::B_ROOK);   // H8
 
-    updateBoard();
+    updateBoard(true);
 }
 
-void ChessBoardWindow::updateBoard() {
-    for(int i=0; i<COLS*ROWS; i++)
-        model->setData(model->index(i%8,i/8),board[i],Qt::DecorationRole);
-    stockfish->send(game);
+void ChessBoardWindow::updateBoard(bool send) {
+    for(int c=0; c<COLS; c++)
+        for(int r=0; r<ROWS; r++)
+            model->setData(model->index(c,r), board[r][7-c].getPic(), Qt::DecorationRole);
+    if(send)
+        stockfish->send(game);
 }
 
-void ChessBoardWindow::move(Square from, Square to) {
-    board[to.getIndex()].setPiece(board[from.getIndex()].getPiece());
-    board[from.getIndex()].setPiece(NONE);
+void ChessBoardWindow::updateBoard(QList<Square> legalMoves) {
+    this->legalMoves = legalMoves;
+    for(int c=0; c<COLS; c++)
+        for(int r=0; r<ROWS; r++) {
+            if(legalMoves.contains(board[c][r])) {
+                model->setData(model->index(c,r), board[r][7-c].getPic(), Qt::BackgroundRole);
+                model->setData(model->index(c,r), QVariant(QImage(":/circle.png")), Qt::ForegroundRole);
+            } else
+                model->setData(model->index(c,r), board[r][7-c].getPic(), Qt::DecorationRole);
+        }
+}
+
+/// Moving
+void ChessBoardWindow::clicked(QModelIndex index) {
+    if(turn==Turn::HUMAN) {
+        Square selected = board[index.column()][7-index.row()];
+        if(lastClick==NULL) {
+            qDebug() << "Clicked from "+selected.toString();
+            lastClick = new Square(selected);
+            updateBoard(Analyzer::getLegalMoves(board,selected));
+        } else if(lastClick->toString() != selected.toString()){
+            qDebug() << "Clicked to "+selected.toString();
+            move(*lastClick,selected,Turn::STOCKFISH);
+            lastClick = NULL;
+        } else {
+            qDebug() << "Cancelled click";
+            updateBoard(false);
+            lastClick = NULL;
+        }
+    }
+}
+
+void ChessBoardWindow::move(Square from, Square to, Turn turn) {
+    this->turn = turn;
+    board[to.c()][to.r()].setPiece(board[from.c()][from.r()].getPiece());
+    board[from.c()][from.r()].setPiece(Piece::NONE);
+    if(from=="e1"&&to=="g1"&&board[to.c()][to.r()].getPiece()==Piece::W_KING) {
+        castling(Castling::W_KINGSIDE);
+    } else if(from=="e1"&&to=="c1"&&board[to.c()][to.r()].getPiece()==Piece::W_KING) {
+        castling(Castling::W_QUEENSIDE);
+    } else if(from=="e8"&&to=="g8"&&board[to.c()][to.r()].getPiece()==Piece::B_KING) {
+        castling(Castling::B_KINGSIDE);
+    } else if(from=="e8"&&to=="c8"&&board[to.c()][to.r()].getPiece()==Piece::B_KING) {
+        castling(Castling::B_QUEENSIDE);
+    }
+
     game.append(" ").append(from.toString()).append(to.toString());
     qDebug() << game;
-    updateBoard();
+    if(this->turn==Turn::STOCKFISH) {
+        updateBoard(true);
+        think();
+    } else
+        updateBoard(false);
+
 }
+
+void ChessBoardWindow::move(char fromCol, int fromRow, char toCol, int toRow) {
+    move(*square(fromCol,fromRow),*square(toCol,toRow), Turn::HUMAN);
+}
+
+void ChessBoardWindow::castling(Castling type) {
+    qDebug() << "castling";
+    switch(type) {
+        case Castling::W_KINGSIDE:
+            square('f',1)->setPiece(square('h',1)->getPiece());
+            square('h',1)->setPiece(Piece::NONE);
+            break;
+        case Castling::W_QUEENSIDE:
+            square('d',1)->setPiece(square('a',1)->getPiece());
+            square('a',1)->setPiece(Piece::NONE);
+            break;
+        case Castling::B_KINGSIDE:
+            square('f',8)->setPiece(square('h',8)->getPiece());
+            square('h',8)->setPiece(Piece::NONE);
+            break;
+        case Castling::B_QUEENSIDE:
+            square('d',8)->setPiece(square('a',8)->getPiece());
+            square('a',8)->setPiece(Piece::NONE);
+            break;
+    }
+}
+
+
 
 void ChessBoardWindow::think() {
     stockfish->send("go");
+    ui->statusBar->showMessage("Calcul du prochain coup...");
 }
 
+Square* ChessBoardWindow::square(char col, int row) {
+    return &board[col-'a'][row-1];
+}
+
+/// STOCKFISH SIGNALS
+void ChessBoardWindow::bestMove(QString mv) {
+    ui->statusBar->showMessage("En attente du prochain coup.");
+    mv = mv.section(" ",1,2);
+    move(mv[0].toLatin1(),mv[1].digitValue(),mv[2].toLatin1(),mv[3].digitValue());
+}
+
+void ChessBoardWindow::uciok() {
+
+}
+
+void ChessBoardWindow::readyok() {
+
+}
+
+void ChessBoardWindow::info(QString info) {
+    qDebug() << info;
+    if(info.contains("score mate 1")) {
+        ui->statusBar->showMessage("Partie terminée.");
+        turn = Turn::GAME_OVER;
+    }
+}
+
+/// Stockfish options
 void ChessBoardWindow::setDifficulty(int dif) {
     stockfish->setDifficulty(dif);
 }
 
+/// Window management
 ChessBoardWindow::~ChessBoardWindow() {
     delete ui;
 }
+
+void ChessBoardWindow::exit() {
+    QCoreApplication::quit();
+}
+
+
+
+/*
+QImage createImageWithOverlay(const QImage& baseImage, const QImage& overlayImage) {
+    QImage imageWithOverlay = QImage(baseImage.size(), QImage::Format_ARGB32_Premultiplied);
+    QPainter painter(&imageWithOverlay);
+
+    painter.setCompositionMode(QPainter::CompositionMode_Source);
+    painter.fillRect(imageWithOverlay.rect(), Qt::transparent);
+
+    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+    painter.drawImage(0, 0, baseImage);
+
+    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+    painter.drawImage(0, 0, overlayImage);
+
+    painter.end();
+
+    return imageWithOverlay;
+}
+*/
+

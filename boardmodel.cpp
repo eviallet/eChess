@@ -14,10 +14,25 @@ int BoardModel::columnCount(const QModelIndex &parent) const {
 
 bool BoardModel::setData(const QModelIndex &index, const QVariant &value, int role) {
     board[index.column()][index.row()] = value;
+    emit(dataChanged(index,index));
     return true;
 }
 
 QVariant BoardModel::data(const QModelIndex &index, int role) const {
-    return board[index.column()][index.row()];
+    switch(role) {
+        case Qt::DecorationRole :
+            return board[index.column()][index.row()];
+        case Qt::BackgroundColorRole:
+            if ((index.column()+index.row())%2!=0)
+                return QVariant(QColor(Qt::gray));
+            else
+                return QVariant(QColor(Qt::white));
+        case Qt::BackgroundRole :
+            return QVariant();
+        case Qt::ForegroundRole :
+            return QVariant();
+        default:
+            return QVariant();
+    }
 }
 
