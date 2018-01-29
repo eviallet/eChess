@@ -89,22 +89,30 @@ void ChessBoardWindow::initBoard() {
 }
 
 void ChessBoardWindow::updateBoard(bool send) {
-    for(int c=0; c<COLS; c++)
-        for(int r=0; r<ROWS; r++)
-            model->setData(model->index(c,r), board[r][7-c].getPic(), Qt::DecorationRole);
+    updateBoard(NULL);
     if(send)
         stockfish->send(game);
 }
 
-void ChessBoardWindow::updateBoard(QList<Square> legalMoves) {
+void ChessBoardWindow::updateBoard(QList<Square> *legalMoves) {
     this->legalMoves = legalMoves;
     for(int c=0; c<COLS; c++)
         for(int r=0; r<ROWS; r++) {
-            if(legalMoves.contains(board[c][r])) {
-                model->setData(model->index(c,r), board[r][7-c].getPic(), Qt::BackgroundRole);
-                model->setData(model->index(c,r), QVariant(QImage(":/circle.png")), Qt::ForegroundRole);
-            } else
-                model->setData(model->index(c,r), board[r][7-c].getPic(), Qt::DecorationRole);
+            QPixmap background(SQUARE_SIZE, SQUARE_SIZE);
+            QPainter painter(&background);
+            if((c+r)%2!=0)
+                painter.setPen(QColor(Qt::white));
+            else
+                painter.setPen(QColor(Qt::gray));
+
+            painter.drawImage(0, 0, board[r][7-c].getPic().value<QImage>().scaled(SQUARE_SIZE,SQUARE_SIZE));
+
+            if(Square::contains(legalMoves, board[r][7-c]))
+                painter.drawImage(0,0,QImage(":/circle.png").scaled(SQUARE_SIZE/8,SQUARE_SIZE/8));
+
+            painter.end();
+
+            model->setData(model->index(c,r), board[r][7-c].getPic(), Qt::DecorationRole);
         }
 }
 
@@ -225,8 +233,6 @@ ChessBoardWindow::~ChessBoardWindow() {
 void ChessBoardWindow::exit() {
     QCoreApplication::quit();
 }
-
-
 
 /*
 QImage createImageWithOverlay(const QImage& baseImage, const QImage& overlayImage) {

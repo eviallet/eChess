@@ -1,6 +1,6 @@
 #include "analyzer.h"
 
-QList<Square> Analyzer:: getLegalMoves(const Square board[COLS][ROWS], const Square from) {
+QList<Square>* Analyzer:: getLegalMoves(const Square board[COLS][ROWS], const Square from) {
     QList<Square> moves;
     int b = 1;
     switch(from.getPiece()) {
@@ -191,7 +191,7 @@ QList<Square> Analyzer:: getLegalMoves(const Square board[COLS][ROWS], const Squ
     }
     for(int i=0; i<moves.size();i++)
         qDebug() << moves[i].toString();
-    return moves;
+    return &moves;
 }
 
 bool Analyzer::isEnemy(const Square* from, const Square* to) {

@@ -7,7 +7,7 @@
 
 class Analyzer {
     public:
-        static QList<Square> getLegalMoves(const Square board[COLS][ROWS], const Square from);
+        static QList<Square>* getLegalMoves(const Square board[COLS][ROWS], const Square from);
     private:
         static bool isEnemy(const Square *from, const Square *to);
 };

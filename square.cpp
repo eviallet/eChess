@@ -73,3 +73,10 @@ QVariant Square::getPic() const {
     }
 }
 
+bool Square::contains(const QList<Square> list, const Square s) {
+    for(int i=0; i<list.size(); i++)
+        if(list.at(i)==s)
+            return true;
+    return false;
+}
+

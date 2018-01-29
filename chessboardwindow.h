@@ -43,7 +43,7 @@ class ChessBoardWindow : public QMainWindow {
         void info(QString info);
     private slots:
         void updateBoard(bool send);
-        void updateBoard(QList<Square> legalMoves);
+        void updateBoard(QList<Square> *legalMoves);
         void move(Square from, Square to, Turn turn);
         void move(char fromCol, int fromRow, char toCol, int toRow);
         void castling(Castling type);

@@ -5,6 +5,7 @@
 #include <QVariant>
 #include <QString>
 #include <QPixmap>
+#include <QDebug>
 
 #define ROWS 8
 #define COLS 8
@@ -37,18 +38,20 @@ class Square : public QVariant {
         int r() const;
         QVariant getPic() const;
         static int getSquare(char col, int row);
-        inline bool operator==(const Square& other) { // inline = function declared entirely in class .h ~ friend : can be accessed from outside class
-            return col==other.c()&&row==other.r()&&piece==other.getPiece();
+        inline bool operator==(const Square& other) const { // inline = function declared entirely in class .h ~ friend : can be accessed from outside class
+            return toString()==other.toString();
         }
-        inline bool operator!=(const Square& other) {
+        inline bool operator!=(const Square& other) const {
             return !operator==(other);
         }
-        inline bool operator==(const QString& other) {
+        inline bool operator==(const QString& other) const {
             return toString()==other;
         }
-        inline bool operator!=(const QString& other) {
+        inline bool operator!=(const QString& other) const {
             return !operator==(other);
         }
+    public slots:
+        static bool contains(const QList<Square> list, const Square s);
     private:
         char col;
         int row;
