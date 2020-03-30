@@ -19,7 +19,9 @@ class Stockfish : public QObject {
 
         void send(QString cmd);
         void setDifficulty(int level);
-    signals:
+        void setELO(int elo);
+        void kill();
+signals:
         void uciok();
         void readyok();
         void bestMove(QString move);

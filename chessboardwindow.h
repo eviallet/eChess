@@ -9,19 +9,8 @@
 #include "boardmodel.h"
 #include "stockfish.h"
 #include "analyzer.h"
+#include "fen.h"
 
-enum class Turn {
-    HUMAN,
-    STOCKFISH,
-    GAME_OVER
-};
-
-enum class Castling {
-    W_KINGSIDE,
-    W_QUEENSIDE,
-    B_KINGSIDE,
-    B_QUEENSIDE
-};
 
 namespace Ui {
     class ChessBoardWindow;
@@ -30,10 +19,10 @@ namespace Ui {
 class ChessBoardWindow : public QMainWindow {
     Q_OBJECT
 
-    public:
+public:
         explicit ChessBoardWindow(QWidget *parent = 0);
-        ~ChessBoardWindow();
-    public slots:
+    ~ChessBoardWindow();
+public slots:
         void initBoard();
         void exit();
         void clicked(QModelIndex index);
@@ -41,28 +30,36 @@ class ChessBoardWindow : public QMainWindow {
         void uciok();
         void readyok();
         void info(QString info);
-    private slots:
-        void updateBoard(bool send);
-        void updateBoard(QList<Square> *legalMoves);
-        void move(Square from, Square to, Turn turn);
+private slots:
+        void setFEN(QString fen);
+        void updateFEN();
+        void updateBoard(QList<Square> legalMoves = QList<Square>());
+        void move(Square from, Square to);
         void move(char fromCol, int fromRow, char toCol, int toRow);
         void castling(Castling type);
         void think();
         void setDifficulty(int dif);
-
-        Square *square(char col, int row);
+        bool humanToPlay();
 private:
+        Square *square(char col, int row);
         Ui::ChessBoardWindow *ui;
         Stockfish *stockfish;
 
-        QString game;
+        QList<Square> legalMoves;
+        QImage *circle;
+        QString pgn;
+        int lastPGNMove;
+        FEN fen;
         QTableView *boardView;
         BoardModel *model;
         Square board[COLS][ROWS];
         Turn turn;
-        QList<Square> legalMoves;
+        Player whitePlyr;
+        Player blackPlyr;
+        bool gameOver;
 
         Square *lastClick;
+        void printBoardDebug();
 };
 
 #endif // CHESSBOARDWINDOW_H

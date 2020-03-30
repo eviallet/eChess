@@ -24,6 +24,7 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 
 SOURCES += \
+    fen.cpp \
         main.cpp \
         chessboardwindow.cpp \
     stockfish.cpp \
@@ -33,6 +34,7 @@ SOURCES += \
 
 HEADERS += \
         chessboardwindow.h \
+    fen.h \
     stockfish.h \
     square.h \
     boardmodel.h \

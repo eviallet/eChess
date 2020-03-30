@@ -12,7 +12,8 @@
         <file>pieces/WP.png</file>
         <file>pieces/WQ.png</file>
         <file>pieces/WR.png</file>
+        <file>wood_b.jpg</file>
+        <file>wood_w.jpg</file>
         <file>circle.png</file>
-        <file>circle_blue.png</file>
     </qresource>
 </RCC>
