@@ -16,12 +16,10 @@ QList<Square> Analyzer::getLegalMoves(const Square board[COLS][ROWS], const Squa
                 moves.append(board[from.c()][from.r()+1]);
                 if(from.r()==1&&board[from.c()][from.r()+2].isEmpty()) {
                     moves.append(board[from.c()][from.r()+2]);
-                    ((Square*)(&board[from.c()][from.r()+2]))->getAnalyzerHandle()->analyzer_isEnpassant = true;
                 }
             }
             if(isEnemy(&from,&board[from.c()+1][from.r()+1])) {
                 moves.append(board[from.c()+1][from.r()+1]);
-                ((Square*)(&board[from.c()+1][from.r()+1]))->getAnalyzerHandle()->analyzer_isEnemy = true;
             }
             if(isEnemy(&from,&board[from.c()-1][from.r()+1]))
                 moves.append(board[from.c()-1][from.r()+1]);
@@ -262,14 +260,14 @@ bool Analyzer::isEnemy(const Square* from, const Square* to) {
 }
 
 bool Analyzer::isCheck(const Square board[COLS][ROWS], const Square* king) {
-    QList<Square> enemyPieces;
+    /*QList<Square> enemyPieces;
     for(int c=0; c<COLS; c++)
         for(int r=0; r<ROWS; r++)
             if(isEnemy(king,&board[c][r]))
                 enemyPieces.append(board[c][r]);
     for(int i=0; i<enemyPieces.size(); i++)
         if(Square::contains(getLegalMoves(board,enemyPieces.at(i)),*king))
-            return true;
+            return true;*/
     return false;
 }
 
@@ -293,7 +291,7 @@ bool Analyzer::legalDistanceBetweenKings(const Square board[COLS][ROWS], const S
 }
 
 bool Analyzer::isPinned(const Square board[COLS][ROWS], const Square* ignoring) {
-    QList<Square> enemyPieces;
+    /*QList<Square> enemyPieces;
     Square king;
     for(int c=0; c<COLS; c++)
         for(int r=0; r<ROWS; r++)
@@ -315,14 +313,14 @@ bool Analyzer::isPinned(const Square board[COLS][ROWS], const Square* ignoring) 
         }
     for(int i=0; i<enemyPieces.size(); i++)
         if(Square::contains(getLegalMoves(board,enemyPieces.at(i)),king))
-            return true;
+            return true;*/
     return false;
 
 }
 
 
 bool Analyzer::isProtected(const Square board[COLS][ROWS], const Square* from) {
-    QList<Square> allyPieces;
+    /*QList<Square> allyPieces;
     for(int c=0; c<COLS; c++)
         for(int r=0; r<ROWS; r++) {
             if(from->getPiece()<=Piece::W_KING) {
@@ -338,7 +336,7 @@ bool Analyzer::isProtected(const Square board[COLS][ROWS], const Square* from) {
         allPossibleMoves.append(getLegalMoves(board,allyPieces.at(i)));
     if(Square::contains(allPossibleMoves,*from))
         return true;
-    else
+    else*/
         return false;
 
 }

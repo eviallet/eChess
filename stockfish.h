@@ -6,12 +6,6 @@
 #include <QDebug>
 
 
-static QString cmd_text[] = {
-    "isready",
-    "go",
-    "ucinewgame"
-};
-
 class Stockfish : public QObject {
     Q_OBJECT
     public:
@@ -26,6 +20,9 @@ signals:
         void readyok();
         void bestMove(QString move);
         void info(QString infos);
+        void move(QString move);
+        void endMove();
+        void fen(QString fen);
     private slots:
         void dataAvailable();
         void engineStarted();

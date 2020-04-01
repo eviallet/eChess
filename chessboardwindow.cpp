@@ -2,8 +2,7 @@
 #include "ui_chessboardwindow.h"
 
 // TODO save/load FEN
-// TODO handle pawn promotion
-// TODO human playing black and flip board
+// TODO human playing black = flip board
 
 ChessBoardWindow::ChessBoardWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::ChessBoardWindow) {
     ui->setupUi(this);
@@ -17,23 +16,31 @@ ChessBoardWindow::ChessBoardWindow(QWidget *parent) : QMainWindow(parent), ui(ne
     /// stockfish setup
     stockfish = new Stockfish(this);
 
-    /// circle setup
-    circle = new QImage(CIRCLE_SIZE, CIRCLE_SIZE, QImage::Format_ARGB32);
-    circle->fill(Qt::transparent);
-    QPainter painter(circle);
+    /// overlayCircle setup for legal moves
+    overlayCircle = new QImage(CIRCLE_SIZE, CIRCLE_SIZE, QImage::Format_ARGB32);
+    overlayCircle->fill(Qt::transparent);
+    QPainter painter(overlayCircle);
     painter.setBrush(Qt::green);
     painter.drawEllipse(0,0,CIRCLE_SIZE-1,CIRCLE_SIZE-1);
     painter.end();
+
+    /// square setup for last click
+    overlaySquare = new QImage(SQUARE_SIZE, SQUARE_SIZE, QImage::Format_ARGB32);
+    overlaySquare->fill(Qt::transparent);
+    QPainter painter2(overlaySquare);
+    painter2.setBrush(Qt::blue);
+    painter2.setOpacity(0.15);
+    painter2.drawRect(0,0,SQUARE_SIZE-1,SQUARE_SIZE-1);
+    painter2.end();
 
     /// model setup
     model = new BoardModel();
     model->insertColumns(0,8);
     model->insertRows(0,8);
     lastClick = NULL;
-    whitePlyr = Player::HUMAN;
+    whitePlyr = Player::HUMAN_W;
     blackPlyr = Player::STOCKFISH;
     turn = Turn::WHITE;
-    initBoard();
 
     /// views setup
     boardView->setModel(model);
@@ -65,6 +72,9 @@ ChessBoardWindow::ChessBoardWindow(QWidget *parent) : QMainWindow(parent), ui(ne
     connect(stockfish,SIGNAL(info(QString)),this,SLOT(info(QString)));
     connect(stockfish,SIGNAL(uciok()),this,SLOT(uciok()));
     connect(stockfish,SIGNAL(readyok()),this,SLOT(readyok()));
+    connect(stockfish,SIGNAL(move(QString)),this,SLOT(receivedLegalMove(QString)));
+    connect(stockfish,SIGNAL(endMove()),this,SLOT(allLegalMovesReceived()));
+    connect(stockfish,SIGNAL(fen(QString)),this,SLOT(receivedFEN(QString)));
 
 
     stockfish->send("isready");
@@ -102,36 +112,21 @@ void ChessBoardWindow::setFEN(QString fen) {
 
 void ChessBoardWindow::initBoard() {
     stockfish->send("ucinewgame");
-    pgn = "";
+    game = "position startpos moves";
     gameOver = false;
-    lastPGNMove = 0;
+    lastPawnPromotion = ' ';
+    lockChessboard = false;
 
     setFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
     if(whitePlyr == Player::STOCKFISH)
         think();
+    else
+        updateLegalMoves();
 }
 
-void ChessBoardWindow::printBoardDebug() {
-    QString boardDebug;
-    for(int r=ROWS-1; r>=0; r--) {
-        boardDebug = "";
-        for(int c=0; c<COLS; c++) {
-            char p = board[c][r].getPieceFEN();
-            if(p == 0)
-                p = ' ';
-            boardDebug += p;
-            boardDebug.append(" ");
-            if(c == COLS - 1)
-                boardDebug.append("  ").append(QString::number(r+1));
-        }
-        qDebug() << boardDebug;
-    }
-    qDebug() << "\"               ";
-    qDebug() << "\"A B C D E F G H";
-}
 
-void ChessBoardWindow::updateFEN() {
+void ChessBoardWindow::updateBoardFEN() {
     char emptyCount;
 
     QString boardFEN = "";
@@ -161,23 +156,43 @@ void ChessBoardWindow::updateFEN() {
             boardFEN += "/";
     }
 
-    fen.setBoardFEN(boardFEN);
-    qDebug() << fen.getFEN();
+    qDebug() << boardFEN;
 }
 
-void ChessBoardWindow::updateBoard(QList<Square> legalMoves) {
-    this->legalMoves = legalMoves;
+void ChessBoardWindow::updateLegalMoves() {
+    lockChessboard = true;
+    ui->statusBar->showMessage("Calcul des coups légaux...");
+
+    legalMoves.clear();
+
+    stockfish->send("go perft 1");
+}
+
+void ChessBoardWindow::updateLegalMovesShown(Square from) {
+    if(from.getPiece() == Piece::NONE)
+        legalMovesShown.clear();
+    else
+        legalMovesShown = legalMoves.movesFrom(from);
+
+    updateBoard();
+}
+
+void ChessBoardWindow::updateBoard() {
     for(int c=0; c<COLS; c++) {
         for(int r=0; r<ROWS; r++) {
             QPixmap overlay(SQUARE_SIZE, SQUARE_SIZE);
             overlay.fill(Qt::transparent);
             QPainter painter(&overlay);
 
+            if(lastClick != NULL && board[c][r] == *lastClick)
+                painter.drawImage(overlay.width()/2-SQUARE_SIZE/2, overlay.height()/2-SQUARE_SIZE/2, *overlaySquare);
+
             if(board[c][r].getPiece()!=Piece::NONE)
                 painter.drawImage(0, 0, board[c][r].getPic().scaled(SQUARE_SIZE,SQUARE_SIZE));
 
-            if(Square::contains(legalMoves, board[c][r]))
-                painter.drawImage(overlay.width()/2-CIRCLE_SIZE/2, overlay.height()/2-CIRCLE_SIZE/2, *circle);
+            if(legalMovesShown.contains(board[c][r]))
+                painter.drawImage(overlay.width()/2-CIRCLE_SIZE/2, overlay.height()/2-CIRCLE_SIZE/2, *overlayCircle);
+
 
             painter.end();
 
@@ -185,8 +200,6 @@ void ChessBoardWindow::updateBoard(QList<Square> legalMoves) {
             model->setData(model->index(7-r,c), overlay);
         }
     }
-
-    updateFEN();
 }
 
 /// =========================================================================
@@ -194,40 +207,49 @@ void ChessBoardWindow::updateBoard(QList<Square> legalMoves) {
 /// =========================================================================
 
 bool ChessBoardWindow::humanToPlay() {
-    if(turn == Turn::WHITE && whitePlyr == Player::HUMAN)
+    if((turn == Turn::WHITE && whitePlyr == Player::HUMAN_W) ||
+       (turn == Turn::BLACK && blackPlyr == Player::HUMAN_B)) {
         return true;
-    else if(turn == Turn::BLACK && blackPlyr == Player::HUMAN)
-        return true;
+    }
     return false;
 }
 
 void ChessBoardWindow::clicked(QModelIndex index) {
-    if(gameOver || !humanToPlay())
+    if(gameOver || !humanToPlay() || lockChessboard)
         return;
 
     Square selected = board[index.column()][7-index.row()];
-    if(selected.getPiece()<=Piece::W_KING) { /// couleur joueur
-        if(lastClick==NULL) {
-            //qDebug() << "Clicked from "+selected.toString();
-            lastClick = new Square(selected);
-            updateBoard(Analyzer::getLegalMoves(board,selected));
-        } else if(lastClick->toString() != selected.toString()){
-            if(Square::contains(legalMoves,selected)) {
-                //qDebug() << "Clicked to "+selected.toString();
-                move(*lastClick,selected);
-                lastClick = NULL;
-            }
-        } else {
-            //qDebug() << "Cancelled click";
-            updateBoard();
+
+    if(lastClick==NULL && !selected.isEmpty()) {
+        //qDebug() << "Clicked from "+selected.toString();
+        lastClick = new Square(selected);
+        updateLegalMovesShown(selected);
+    } else if(lastClick!=NULL && (lastClick->toString() != selected.toString())){
+        if(legalMoves.contains(*lastClick, selected)) {
+            //qDebug() << "Clicked to "+selected.toString();
+            legalMovesShown.clear();
+            move(*lastClick,selected);
             lastClick = NULL;
+        } else if(!selected.isEmpty()) {
+            //qDebug() << "Changed selection to "+selected.toString();
+            lastClick = new Square(selected);
+            updateLegalMovesShown();
         }
+    } else {
+        //qDebug() << "Cancelled click";
+        lastClick = NULL;
+        updateLegalMovesShown();
     }
 }
 
 void ChessBoardWindow::move(Square from, Square to) {
+    lastFrom = &board[from.c()][from.r()];
+    lastTo = &board[to.c()][to.r()];
+
     board[to.c()][to.r()].setPiece(board[from.c()][from.r()].getPiece());
     board[from.c()][from.r()].setPiece(Piece::NONE);
+
+    // CASTLING
     if(from=="e1"&&to=="g1"&&board[to.c()][to.r()].getPiece()==Piece::W_KING) {
         castling(Castling::W_KINGSIDE);
     } else if(from=="e1"&&to=="c1"&&board[to.c()][to.r()].getPiece()==Piece::W_KING) {
@@ -238,25 +260,55 @@ void ChessBoardWindow::move(Square from, Square to) {
         castling(Castling::B_QUEENSIDE);
     }
 
-    turn = fen.nextTurn();
-
-    int movesCount = fen.getMovesCount();
-    if(movesCount != lastPGNMove) {
-        lastPGNMove = movesCount;
-        pgn.append(QString(" %1.").arg(QString::number(movesCount)));
+    // PAWN PROMOTION
+    else if((from.getPiece() == Piece::W_PAWN && from.r()==6) || (from.getPiece() == Piece::B_PAWN && from.r()==1)) {
+        if(!humanToPlay()) {
+            pawnPromotionChosen(lastPawnPromotion);
+        } else {
+            lockChessboard = true;
+            PromotionDialog *p = new PromotionDialog(this, turn);
+            connect(p, SIGNAL(pieceSelected(char)), this, SLOT(pawnPromotionChosen(char)));
+            p->show();
+        }
     }
-    pgn.append(" ").append(from.toString()).append(to.toString());
 
+    // ELSE
+    else
+        proceedToNextTurn();
+}
 
-    updateBoard();
-    qDebug() << pgn;
+void ChessBoardWindow::pawnPromotionChosen(char p) {
+    lockChessboard = false;
+    lastPawnPromotion = p;
 
+    lastTo->setPiece(Square::fenToPiece(p));
+    proceedToNextTurn();
+}
+
+void ChessBoardWindow::proceedToNextTurn() {
     if(gameOver) {
         ui->statusBar->showMessage("Partie terminée.");
-    } else if(!humanToPlay()) { // Stockfish's turn
-        think();
+        lockChessboard = true;
+        return;
     }
-    // else : human turn
+
+    nextTurn();
+
+    QString lastMove = lastFrom->toString() + lastTo->toString();
+    if(lastPawnPromotion != ' ') {
+        lastMove += lastPawnPromotion;
+        lastPawnPromotion = ' ';
+    }
+    game.append(" ").append(lastMove);
+
+    updateBoard();
+    //qDebug() << game;
+    stockfish->send(game);
+
+    if(!humanToPlay()) // Stockfish's turn
+        think();
+    else // human turn
+        updateLegalMoves();
 }
 
 void ChessBoardWindow::move(char fromCol, int fromRow, char toCol, int toRow) {
@@ -264,7 +316,6 @@ void ChessBoardWindow::move(char fromCol, int fromRow, char toCol, int toRow) {
 }
 
 void ChessBoardWindow::castling(Castling type) {
-    qDebug() << "castling";
     switch(type) {
         case Castling::W_KINGSIDE:
             square('f',1)->setPiece(square('h',1)->getPiece());
@@ -283,13 +334,25 @@ void ChessBoardWindow::castling(Castling type) {
             square('a',8)->setPiece(Piece::NONE);
             break;
     }
+
+    proceedToNextTurn();
 }
 
 
 void ChessBoardWindow::think() {
-    stockfish->send(QString("position fen ").append(fen.getFEN()));
     stockfish->send("go");
     ui->statusBar->showMessage("Calcul du prochain coup...");
+}
+
+void ChessBoardWindow::queryFEN() {
+    stockfish->send("d");
+}
+
+void ChessBoardWindow::nextTurn() {
+    if(turn == Turn::WHITE)
+        turn = Turn::BLACK;
+    else
+        turn = Turn::WHITE;
 }
 
 Square* ChessBoardWindow::square(char col, int row) {
@@ -304,21 +367,45 @@ void ChessBoardWindow::readyok() {
     stockfish->send("uci");
 }
 
-
 void ChessBoardWindow::uciok() {
-
+    initBoard();
 }
 
 void ChessBoardWindow::info(QString info) {
     //qDebug() << info;
-    if(info.contains("score mate 1"))
+    if(info.contains("score mate 0"))
         gameOver = true;
 }
 
+void ChessBoardWindow::receivedFEN(QString f) {
+    fen = f;
+    qDebug() << "Received fen from Stockfish : " << fen;
+}
+
 void ChessBoardWindow::bestMove(QString mv) {
+    if(mv.contains("(none)")) { // score mate 0
+        gameOver = true;
+        proceedToNextTurn();
+        return;
+    }
+
     ui->statusBar->showMessage("En attente du prochain coup.");
     mv = mv.section(" ",1,2);
+    if(mv.length() >= 5 && mv[4].toLatin1() != ' ') { // pawn promotion
+        lastPawnPromotion = mv[4].toLatin1();
+        if(turn == Turn::WHITE)
+            lastPawnPromotion += ('A' - 'a');
+    }
     move(mv[0].toLatin1(),mv[1].digitValue(),mv[2].toLatin1(),mv[3].digitValue());
+}
+
+void ChessBoardWindow::receivedLegalMove(QString move) {
+    legalMoves.append(move);
+}
+
+void ChessBoardWindow::allLegalMovesReceived() {
+    lockChessboard = false;
+    ui->statusBar->showMessage("En attente du prochain coup.");
 }
 
 /// =========================================================================

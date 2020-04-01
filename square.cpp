@@ -96,44 +96,58 @@ bool Square::isEmpty() const {
     return piece==Piece::NONE;
 }
 
-int Square::c() const {
-    return col-'a';
+QImage Square::getPic() const {
+    QString path = getPath(piece);
+    if(path.isEmpty())
+        return QImage();
+    return QImage(path);
 }
 
-QImage Square::getPic() const {
+QIcon Square::getPic(Piece piece) {
+    QString path = getPath(piece);
+    if(path.isEmpty())
+        return QIcon();
+    return QIcon(path);
+}
+
+QString Square::getPath(Piece piece) {
     switch(piece) {
         case Piece::W_PAWN:
-            return QImage(":/pieces/WP");
+            return ":/pieces/WP";
         case Piece::W_ROOK:
-            return QImage(":/pieces/WR");
+            return ":/pieces/WR";
         case Piece::W_KNIGHT:
-            return QImage(":/pieces/WN");
+            return ":/pieces/WN";
         case Piece::W_BISHOP:
-            return QImage(":/pieces/WB");
+            return ":/pieces/WB";
         case Piece::W_QUEEN:
-            return QImage(":/pieces/WQ");
+            return ":/pieces/WQ";
         case Piece::W_KING:
-            return QImage(":/pieces/WK");
+            return ":/pieces/WK";
         case Piece::B_PAWN:
-            return QImage(":/pieces/BP");
+            return ":/pieces/BP";
         case Piece::B_ROOK:
-            return QImage(":/pieces/BR");
+            return ":/pieces/BR";
         case Piece::B_KNIGHT:
-            return QImage(":/pieces/BN");
+            return ":/pieces/BN";
         case Piece::B_BISHOP:
-            return QImage(":/pieces/BB");
+            return ":/pieces/BB";
         case Piece::B_QUEEN:
-            return QImage(":/pieces/BQ");
+            return ":/pieces/BQ";
         case Piece::B_KING:
-            return QImage(":/pieces/BK");
+            return ":/pieces/BK";
         default:
-            return QImage();
+            return "";
     }
 }
 
 /// =========================================================================
 ///                         BOARD COORDINATES (COL, ROW)
 /// =========================================================================
+
+int Square::c() const {
+    return col-'a';
+}
 
 int Square::r() const {
     return row;
@@ -148,25 +162,4 @@ int Square::getSquare(char col, int row) {
         col-='a';
     return row*8+col;
 }
-
-/// =========================================================================
-///                           ANALYZER FUNCTIONS
-/// =========================================================================
-
-
-bool Square::contains(const QList<Square> list, const Square s) {
-    for(int i=0; i<list.size(); i++)
-        if(list.at(i)==s)
-            return true;
-    return false;
-}
-
-AnalyzerHandle* Square::getAnalyzerHandle() {
-    return &analyzerHandle;
-}
-
-void Square::clearAnalyzerHandle() {
-    analyzerHandle = {0,0,0,0,0};
-}
-
 

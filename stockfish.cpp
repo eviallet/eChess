@@ -14,8 +14,10 @@ Stockfish::Stockfish(QObject* parent) {
 ///                                COMMANDS
 /// =========================================================================
 
+
+
 void Stockfish::send(QString cmd) {
-    qDebug() << "Sending to Stockfish : " << cmd;
+    //qDebug() << "Sending to Stockfish : " << cmd;
     cmd.append("\n");
     engine->write(cmd.toLocal8Bit().data());
 }
@@ -45,12 +47,18 @@ void Stockfish::dataAvailable() {
         //qDebug() << line;
         if(line.contains("bestmove"))
             emit(bestMove(line));
-        if(line.contains("readyok"))
+        else if(line.contains("readyok"))
             emit(readyok());
-        if(line.contains("uciok"))
+        else if(line.contains("uciok"))
             emit(uciok());
-        if(line.contains("info"))
+        else if(line.contains("info"))
             emit(info(line));
+        else if(line.right(3) == ": 1")
+            emit(move(line.left(4)));
+        else if(line.left(15) == "Nodes searched:")
+            emit(endMove());
+        else if(line.left(4) == "Fen:")
+            emit(fen(line.replace("Fen: ","")));
     }
 }
 

@@ -9,7 +9,7 @@
 #define ROLE_DEC 1
 
 #define SQUARE_SIZE 80
-#define CIRCLE_SIZE SQUARE_SIZE/8
+#define CIRCLE_SIZE SQUARE_SIZE/4
 
 class BoardModel : public QAbstractTableModel {
     public:

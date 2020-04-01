@@ -24,21 +24,22 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 
 SOURCES += \
-    fen.cpp \
         main.cpp \
         chessboardwindow.cpp \
+    movelist.cpp \
+    promotiondialog.cpp \
     stockfish.cpp \
     square.cpp \
-    boardmodel.cpp \
-    analyzer.cpp
+    boardmodel.cpp
 
 HEADERS += \
         chessboardwindow.h \
-    fen.h \
+    constants.h \
+    movelist.h \
+    promotiondialog.h \
     stockfish.h \
     square.h \
-    boardmodel.h \
-    analyzer.h
+    boardmodel.h
 
 FORMS += \
         chessboardwindow.ui
