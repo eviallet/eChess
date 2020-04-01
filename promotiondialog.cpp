@@ -54,7 +54,7 @@ void PromotionDialog::onItemSelected() {
     char piece = s->accessibleName()[0].toLatin1();
 
     if(turn == Turn::WHITE)
-        piece -= 'a' + 'A';
+        piece += ('A' - 'a');
 
     emit(pieceSelected(piece));
     QDialog::accept();

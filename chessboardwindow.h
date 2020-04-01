@@ -32,7 +32,8 @@ public slots:
     void info(QString info);
     void receivedFEN(QString f);
     void receivedLegalMove(QString move);
-    void allLegalMovesReceived();
+    void allLegalMovesReceived(int);
+    void receivedCheckers(QString f);
 private slots:
     void setFEN(QString receivedFEN);
     void updateBoard();
@@ -50,31 +51,38 @@ private slots:
     Square *square(char col, int row);
     void nextTurn();
     void pawnPromotionChosen(char p);
+    void setupOverlay(QImage *overlay, QColor color, bool isRect = false, qreal alpha = 1.0);
 private:
     Ui::ChessBoardWindow *ui;
     Stockfish *stockfish;
 
-    MoveList legalMoves;
-    MoveList legalMovesShown;
-    QImage *overlayCircle;
-    QImage *overlaySquare;
     QString game;
     QString fen;
+
     QTableView *boardView;
     BoardModel *model;
     Square board[COLS][ROWS];
+    QImage *overlayCircle;
+    QImage *overlaySquare;
+    QImage *overlayCheck;
+    QImage *overlayCheckers;
+
     Turn turn;
     Player whitePlyr;
     Player blackPlyr;
     bool gameOver;
-
-    Square* lastFrom;
-    Square* lastTo;
-
     bool lockChessboard = false;
+
+    MoveList legalMoves;
+    MoveList legalMovesShown;
+
+    Square lastFrom;
+    Square lastTo;
+    Square *lastClick;
+    QList<Square> checkersSquares;
+
     char lastPawnPromotion = ' ';
 
-    Square *lastClick;
 };
 
 #endif // CHESSBOARDWINDOW_H

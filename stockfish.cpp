@@ -56,9 +56,11 @@ void Stockfish::dataAvailable() {
         else if(line.right(3) == ": 1")
             emit(move(line.left(4)));
         else if(line.left(15) == "Nodes searched:")
-            emit(endMove());
+            emit(endMove(line.replace("Nodes searched: ","").toInt()));
         else if(line.left(4) == "Fen:")
             emit(fen(line.replace("Fen: ","")));
+        else if(line.left(9) == "Checkers:")
+            emit(check(line.replace("Checkers: ","")));
     }
 }
 

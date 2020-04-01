@@ -3,6 +3,7 @@
 
 // TODO save/load FEN
 // TODO human playing black = flip board
+// TODO enpassant not removing pawn (using fen?)
 
 ChessBoardWindow::ChessBoardWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::ChessBoardWindow) {
     ui->setupUi(this);
@@ -16,29 +17,28 @@ ChessBoardWindow::ChessBoardWindow(QWidget *parent) : QMainWindow(parent), ui(ne
     /// stockfish setup
     stockfish = new Stockfish(this);
 
-    /// overlayCircle setup for legal moves
+    /// overlay setup for legal moves
     overlayCircle = new QImage(CIRCLE_SIZE, CIRCLE_SIZE, QImage::Format_ARGB32);
-    overlayCircle->fill(Qt::transparent);
-    QPainter painter(overlayCircle);
-    painter.setBrush(Qt::green);
-    painter.drawEllipse(0,0,CIRCLE_SIZE-1,CIRCLE_SIZE-1);
-    painter.end();
+    setupOverlay(overlayCircle, Qt::green);
 
-    /// square setup for last click
+    /// overlay setup for last click
     overlaySquare = new QImage(SQUARE_SIZE, SQUARE_SIZE, QImage::Format_ARGB32);
-    overlaySquare->fill(Qt::transparent);
-    QPainter painter2(overlaySquare);
-    painter2.setBrush(Qt::blue);
-    painter2.setOpacity(0.15);
-    painter2.drawRect(0,0,SQUARE_SIZE-1,SQUARE_SIZE-1);
-    painter2.end();
+    setupOverlay(overlaySquare, Qt::blue, true, 0.15);
+
+    /// overlay setup for check
+    overlayCheck = new QImage(SQUARE_SIZE, SQUARE_SIZE, QImage::Format_ARGB32);
+    setupOverlay(overlayCheck, Qt::red, true, 0.55);
+
+    /// overlay setup for checkers
+    overlayCheckers = new QImage(CIRCLE_SIZE, CIRCLE_SIZE, QImage::Format_ARGB32);
+    setupOverlay(overlayCheckers, Qt::yellow, false, 0.75);
 
     /// model setup
     model = new BoardModel();
     model->insertColumns(0,8);
     model->insertRows(0,8);
     lastClick = NULL;
-    whitePlyr = Player::HUMAN_W;
+    whitePlyr = Player::STOCKFISH;
     blackPlyr = Player::STOCKFISH;
     turn = Turn::WHITE;
 
@@ -73,11 +73,24 @@ ChessBoardWindow::ChessBoardWindow(QWidget *parent) : QMainWindow(parent), ui(ne
     connect(stockfish,SIGNAL(uciok()),this,SLOT(uciok()));
     connect(stockfish,SIGNAL(readyok()),this,SLOT(readyok()));
     connect(stockfish,SIGNAL(move(QString)),this,SLOT(receivedLegalMove(QString)));
-    connect(stockfish,SIGNAL(endMove()),this,SLOT(allLegalMovesReceived()));
+    connect(stockfish,SIGNAL(endMove(int)),this,SLOT(allLegalMovesReceived(int)));
     connect(stockfish,SIGNAL(fen(QString)),this,SLOT(receivedFEN(QString)));
+    connect(stockfish,SIGNAL(check(QString)),this,SLOT(receivedCheckers(QString)));
 
 
     stockfish->send("isready");
+}
+
+void ChessBoardWindow::setupOverlay(QImage* overlay, QColor color, bool isRect, qreal alpha) {
+    overlay->fill(Qt::transparent);
+    QPainter painter(overlay);
+    painter.setBrush(color);
+    painter.setOpacity(alpha);
+    if(isRect)
+        painter.drawRect(0,0,overlay->size().width()-1,overlay->size().height()-1);
+    else
+        painter.drawEllipse(0,0,overlay->size().width()-1,overlay->size().height()-1);
+    painter.end();
 }
 
 
@@ -116,8 +129,13 @@ void ChessBoardWindow::initBoard() {
     gameOver = false;
     lastPawnPromotion = ' ';
     lockChessboard = false;
+    checkersSquares.clear();
+
+    updateBoard();
 
     setFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+
+    stockfish->send(game);
 
     if(whitePlyr == Player::STOCKFISH)
         think();
@@ -184,15 +202,27 @@ void ChessBoardWindow::updateBoard() {
             overlay.fill(Qt::transparent);
             QPainter painter(&overlay);
 
+            // draw red rect under king if in check
+            if(checkersSquares.size()>0 &&
+                    ((turn == Turn::WHITE && board[c][r].getPiece() == Piece::W_KING) ||
+                     (turn == Turn::BLACK && board[c][r].getPiece() == Piece::B_KING)))
+                painter.drawImage(overlay.width()/2-SQUARE_SIZE/2, overlay.height()/2-SQUARE_SIZE/2, *overlayCheck);
+
+            // draw blue rect under current selection
             if(lastClick != NULL && board[c][r] == *lastClick)
                 painter.drawImage(overlay.width()/2-SQUARE_SIZE/2, overlay.height()/2-SQUARE_SIZE/2, *overlaySquare);
 
+            // draw pieces
             if(board[c][r].getPiece()!=Piece::NONE)
                 painter.drawImage(0, 0, board[c][r].getPic().scaled(SQUARE_SIZE,SQUARE_SIZE));
 
+            // draw orange circle on checkers
+            if(checkersSquares.contains(board[c][r]))
+                painter.drawImage(overlay.width()/2-CIRCLE_SIZE/2, overlay.height()/2-CIRCLE_SIZE/2, *overlayCheckers);
+
+            // draw blue circle on legal moves
             if(legalMovesShown.contains(board[c][r]))
                 painter.drawImage(overlay.width()/2-CIRCLE_SIZE/2, overlay.height()/2-CIRCLE_SIZE/2, *overlayCircle);
-
 
             painter.end();
 
@@ -228,12 +258,13 @@ void ChessBoardWindow::clicked(QModelIndex index) {
         if(legalMoves.contains(*lastClick, selected)) {
             //qDebug() << "Clicked to "+selected.toString();
             legalMovesShown.clear();
-            move(*lastClick,selected);
+            Square from = *lastClick;
             lastClick = NULL;
+            move(from,selected);
         } else if(!selected.isEmpty()) {
             //qDebug() << "Changed selection to "+selected.toString();
             lastClick = new Square(selected);
-            updateLegalMovesShown();
+            updateLegalMovesShown(selected);
         }
     } else {
         //qDebug() << "Cancelled click";
@@ -243,8 +274,8 @@ void ChessBoardWindow::clicked(QModelIndex index) {
 }
 
 void ChessBoardWindow::move(Square from, Square to) {
-    lastFrom = &board[from.c()][from.r()];
-    lastTo = &board[to.c()][to.r()];
+    lastFrom = board[from.c()][from.r()];
+    lastTo = board[to.c()][to.r()];
 
     board[to.c()][to.r()].setPiece(board[from.c()][from.r()].getPiece());
     board[from.c()][from.r()].setPiece(Piece::NONE);
@@ -281,7 +312,7 @@ void ChessBoardWindow::pawnPromotionChosen(char p) {
     lockChessboard = false;
     lastPawnPromotion = p;
 
-    lastTo->setPiece(Square::fenToPiece(p));
+    board[lastTo.c()][lastTo.r()].setPiece(Square::fenToPiece(p));
     proceedToNextTurn();
 }
 
@@ -292,9 +323,12 @@ void ChessBoardWindow::proceedToNextTurn() {
         return;
     }
 
+    if(checkersSquares.size()>0)
+        checkersSquares.clear();
+
     nextTurn();
 
-    QString lastMove = lastFrom->toString() + lastTo->toString();
+    QString lastMove = lastFrom.toString() + lastTo.toString();
     if(lastPawnPromotion != ' ') {
         lastMove += lastPawnPromotion;
         lastPawnPromotion = ' ';
@@ -377,11 +411,6 @@ void ChessBoardWindow::info(QString info) {
         gameOver = true;
 }
 
-void ChessBoardWindow::receivedFEN(QString f) {
-    fen = f;
-    qDebug() << "Received fen from Stockfish : " << fen;
-}
-
 void ChessBoardWindow::bestMove(QString mv) {
     if(mv.contains("(none)")) { // score mate 0
         gameOver = true;
@@ -403,7 +432,27 @@ void ChessBoardWindow::receivedLegalMove(QString move) {
     legalMoves.append(move);
 }
 
-void ChessBoardWindow::allLegalMovesReceived() {
+void ChessBoardWindow::allLegalMovesReceived(int n) {
+    if(n == 0) {
+        gameOver = true;
+        proceedToNextTurn();
+        return;
+    }
+    stockfish->send("d");
+}
+
+void ChessBoardWindow::receivedFEN(QString f) {
+    fen = f;
+}
+
+void ChessBoardWindow::receivedCheckers(QString c) {
+    if(c.length()>1) {
+        QStringList checkers = c.split(" ");
+        for(QString chk : checkers)
+            checkersSquares.append(Square(chk[0].toLatin1()-'a', chk[1].toLatin1()-'1'));
+        updateBoard();
+    }
+
     lockChessboard = false;
     ui->statusBar->showMessage("En attente du prochain coup.");
 }

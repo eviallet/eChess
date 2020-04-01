@@ -21,8 +21,9 @@ signals:
         void bestMove(QString move);
         void info(QString infos);
         void move(QString move);
-        void endMove();
+        void endMove(int nodes);
         void fen(QString fen);
+        void check(QString chck);
     private slots:
         void dataAvailable();
         void engineStarted();
