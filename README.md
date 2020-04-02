@@ -34,3 +34,5 @@ If everything works, I might add a stepper to move pieces around automatically!
 ## Setup
 
 To work correctly, stockfish.exe should be on C: root, like : "C:/stockfish.exe"
+
+Look at ChessDiagram.png to understand how functions work together.
