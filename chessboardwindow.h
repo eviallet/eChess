@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include <QTableView>
 #include <QPainter>
+#include <QInputDialog>
 
 #include "square.h"
 #include "boardmodel.h"

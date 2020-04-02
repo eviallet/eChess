@@ -31,8 +31,8 @@ void Stockfish::setELO(int elo) {
         elo = 1350;
     else if(elo>2850)
         elo = 2850;
-    send("setoption name UCI_ELO value "+QString::number(elo));
     send("setoption name UCI_LimitStrength value 1");
+    send("setoption name UCI_ELO value "+QString::number(elo));
 }
 
 /// =========================================================================

@@ -2,8 +2,8 @@
 #include "ui_chessboardwindow.h"
 
 // TODO save/load FEN
-// TODO human playing black = flip board
 // TODO enpassant not removing pawn (using fen?)
+// TODO indicateur de tour
 
 ChessBoardWindow::ChessBoardWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::ChessBoardWindow) {
     ui->setupUi(this);
@@ -38,9 +38,8 @@ ChessBoardWindow::ChessBoardWindow(QWidget *parent) : QMainWindow(parent), ui(ne
     model->insertColumns(0,8);
     model->insertRows(0,8);
     lastClick = NULL;
-    whitePlyr = Player::STOCKFISH;
+    whitePlyr = Player::HUMAN_W;
     blackPlyr = Player::STOCKFISH;
-    turn = Turn::WHITE;
 
     /// views setup
     boardView->setModel(model);
@@ -67,6 +66,41 @@ ChessBoardWindow::ChessBoardWindow(QWidget *parent) : QMainWindow(parent), ui(ne
     /// signals/slots
     connect(ui->actionNouvelle_partie,SIGNAL(triggered()),this,SLOT(initBoard()));
     connect(ui->actionQuitter,SIGNAL(triggered()),this,SLOT(exit()));
+    connect(ui->actionDifficulte,&QAction::triggered,[&] {
+        bool ok;
+        int dif = QInputDialog::getInt(this, "Choisir la difficulté", "Difficulté (1350-2850)", 1350, 1350, 2850, 1, &ok);
+        if(ok)
+            setDifficulty(dif);
+    });
+    connect(ui->actionJoueurs,&QAction::triggered,[&] {
+        bool ok;
+        QString item = QInputDialog::getItem(this, "Choisir les joueurs", "Blanc / Noir",
+        {"Humain / Humain", "Humain / PC", "PC / Humain", "PC / PC"}, 1, false, &ok);
+        if(ok) {
+            if(item == "Humain / Humain") {
+                whitePlyr = Player::HUMAN_W;
+                blackPlyr = Player::HUMAN_B;
+            }
+            else if(item == "Humain / PC") {
+                whitePlyr = Player::HUMAN_W;
+                blackPlyr = Player::STOCKFISH;
+            }
+            else if(item == "PC / Humain") {
+                whitePlyr = Player::STOCKFISH;
+                blackPlyr = Player::HUMAN_B;
+            }
+            else { // item == "PC / PC"
+                whitePlyr = Player::STOCKFISH;
+                blackPlyr = Player::STOCKFISH;
+            }
+
+            if(!humanToPlay())
+                think();
+            else
+                updateLegalMoves();
+        }
+    });
+
     connect(boardView,SIGNAL(clicked(QModelIndex)),this,SLOT(clicked(QModelIndex)));
     connect(stockfish,SIGNAL(bestMove(QString)),this,SLOT(bestMove(QString)));
     connect(stockfish,SIGNAL(info(QString)),this,SLOT(info(QString)));
@@ -130,8 +164,7 @@ void ChessBoardWindow::initBoard() {
     lastPawnPromotion = ' ';
     lockChessboard = false;
     checkersSquares.clear();
-
-    updateBoard();
+    turn = Turn::WHITE;
 
     setFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
@@ -462,7 +495,7 @@ void ChessBoardWindow::receivedCheckers(QString c) {
 /// =========================================================================
 
 void ChessBoardWindow::setDifficulty(int dif) {
-    stockfish->setDifficulty(dif);
+    stockfish->setELO(dif);
 }
 
 /// =========================================================================
