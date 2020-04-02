@@ -28,6 +28,7 @@ public:
     MoveList movesFrom(Square from);
 
     bool contains(Square from, Square to);
+    bool contains(QString from, Square to);
     bool contains(Square to);
     int size();
 private slots:

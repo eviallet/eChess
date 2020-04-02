@@ -13,6 +13,7 @@ class Square : public QVariant {
     public:
         Square();
         Square(int null);
+        Square(QString str);
         Square(const Square &other);
         Square(char col, int row, Piece piece = Piece::NONE);
         QString toString() const;

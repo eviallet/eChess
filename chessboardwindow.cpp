@@ -2,7 +2,6 @@
 #include "ui_chessboardwindow.h"
 
 // TODO save/load FEN
-// TODO enpassant not removing pawn (using fen?)
 // TODO indicateur de tour
 
 ChessBoardWindow::ChessBoardWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::ChessBoardWindow) {
@@ -37,7 +36,6 @@ ChessBoardWindow::ChessBoardWindow(QWidget *parent) : QMainWindow(parent), ui(ne
     model = new BoardModel();
     model->insertColumns(0,8);
     model->insertRows(0,8);
-    lastClick = NULL;
     whitePlyr = Player::HUMAN_W;
     blackPlyr = Player::STOCKFISH;
 
@@ -165,6 +163,8 @@ void ChessBoardWindow::initBoard() {
     lockChessboard = false;
     checkersSquares.clear();
     turn = Turn::WHITE;
+    enpassant = "";
+    lastClick = "";
 
     setFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
@@ -210,15 +210,6 @@ void ChessBoardWindow::updateBoardFEN() {
     qDebug() << boardFEN;
 }
 
-void ChessBoardWindow::updateLegalMoves() {
-    lockChessboard = true;
-    ui->statusBar->showMessage("Calcul des coups légaux...");
-
-    legalMoves.clear();
-
-    stockfish->send("go perft 1");
-}
-
 void ChessBoardWindow::updateLegalMovesShown(Square from) {
     if(from.getPiece() == Piece::NONE)
         legalMovesShown.clear();
@@ -242,7 +233,7 @@ void ChessBoardWindow::updateBoard() {
                 painter.drawImage(overlay.width()/2-SQUARE_SIZE/2, overlay.height()/2-SQUARE_SIZE/2, *overlayCheck);
 
             // draw blue rect under current selection
-            if(lastClick != NULL && board[c][r] == *lastClick)
+            if(!lastClick.isEmpty() && board[c][r] == lastClick)
                 painter.drawImage(overlay.width()/2-SQUARE_SIZE/2, overlay.height()/2-SQUARE_SIZE/2, *overlaySquare);
 
             // draw pieces
@@ -283,35 +274,38 @@ void ChessBoardWindow::clicked(QModelIndex index) {
 
     Square selected = board[index.column()][7-index.row()];
 
-    if(lastClick==NULL && !selected.isEmpty()) {
-        //qDebug() << "Clicked from "+selected.toString();
-        lastClick = new Square(selected);
+    if(lastClick.isEmpty() && !selected.isEmpty()) { // first click on a piece
+        lastClick = selected.toString();
         updateLegalMovesShown(selected);
-    } else if(lastClick!=NULL && (lastClick->toString() != selected.toString())){
-        if(legalMoves.contains(*lastClick, selected)) {
-            //qDebug() << "Clicked to "+selected.toString();
+    }
+    else if(!lastClick.isEmpty() && selected != lastClick) { // if, after selecting a piece, we selected another square
+        if(legalMoves.contains(lastClick, selected)) { // if this is a legal move, then move : lastClick -> selected
             legalMovesShown.clear();
-            Square from = *lastClick;
-            lastClick = NULL;
-            move(from,selected);
-        } else if(!selected.isEmpty()) {
-            //qDebug() << "Changed selection to "+selected.toString();
-            lastClick = new Square(selected);
+            Square from(lastClick);
+            lastClick = "";
+            move(from, selected);
+        }
+        else if(!selected.isEmpty()) { // if this is not a legal move, we selected another piece
+            lastClick = selected.toString();
             updateLegalMovesShown(selected);
         }
-    } else {
-        //qDebug() << "Cancelled click";
-        lastClick = NULL;
+    }
+    else { // if, after selecting a piece, we selected the same one, clear lastClick (ie releasing pawn at the same spot)
+        lastClick = "";
         updateLegalMovesShown();
     }
 }
 
-void ChessBoardWindow::move(Square from, Square to) {
-    lastFrom = board[from.c()][from.r()];
-    lastTo = board[to.c()][to.r()];
+void ChessBoardWindow::move(char fromCol, int fromRow, char toCol, int toRow) {
+    move(*square(fromCol,fromRow),*square(toCol,toRow));
+}
 
+void ChessBoardWindow::move(Square from, Square to) {
     board[to.c()][to.r()].setPiece(board[from.c()][from.r()].getPiece());
     board[from.c()][from.r()].setPiece(Piece::NONE);
+
+    lastFrom = board[from.c()][from.r()];
+    lastTo = board[to.c()][to.r()];
 
     // CASTLING
     if(from=="e1"&&to=="g1"&&board[to.c()][to.r()].getPiece()==Piece::W_KING) {
@@ -336,9 +330,45 @@ void ChessBoardWindow::move(Square from, Square to) {
         }
     }
 
+    // EN PASSANT
+    else if(!enpassant.isEmpty()) {
+        if(lastTo == enpassant) {
+            if(turn == Turn::WHITE && lastTo.getPiece() == Piece::W_PAWN)
+                board[lastTo.c()][lastTo.r()-1].setPiece(Piece::NONE);
+            else if(turn == Turn::BLACK && lastTo.getPiece() == Piece::B_PAWN)
+                board[lastTo.c()][lastTo.r()+1].setPiece(Piece::NONE);
+        }
+
+        enpassant = "";
+        proceedToNextTurn();
+    }
+
     // ELSE
     else
         proceedToNextTurn();
+}
+
+void ChessBoardWindow::castling(Castling type) {
+    switch(type) {
+        case Castling::W_KINGSIDE:
+            square('f',1)->setPiece(square('h',1)->getPiece());
+            square('h',1)->setPiece(Piece::NONE);
+            break;
+        case Castling::W_QUEENSIDE:
+            square('d',1)->setPiece(square('a',1)->getPiece());
+            square('a',1)->setPiece(Piece::NONE);
+            break;
+        case Castling::B_KINGSIDE:
+            square('f',8)->setPiece(square('h',8)->getPiece());
+            square('h',8)->setPiece(Piece::NONE);
+            break;
+        case Castling::B_QUEENSIDE:
+            square('d',8)->setPiece(square('a',8)->getPiece());
+            square('a',8)->setPiece(Piece::NONE);
+            break;
+    }
+
+    proceedToNextTurn();
 }
 
 void ChessBoardWindow::pawnPromotionChosen(char p) {
@@ -378,42 +408,6 @@ void ChessBoardWindow::proceedToNextTurn() {
         updateLegalMoves();
 }
 
-void ChessBoardWindow::move(char fromCol, int fromRow, char toCol, int toRow) {
-    move(*square(fromCol,fromRow),*square(toCol,toRow));
-}
-
-void ChessBoardWindow::castling(Castling type) {
-    switch(type) {
-        case Castling::W_KINGSIDE:
-            square('f',1)->setPiece(square('h',1)->getPiece());
-            square('h',1)->setPiece(Piece::NONE);
-            break;
-        case Castling::W_QUEENSIDE:
-            square('d',1)->setPiece(square('a',1)->getPiece());
-            square('a',1)->setPiece(Piece::NONE);
-            break;
-        case Castling::B_KINGSIDE:
-            square('f',8)->setPiece(square('h',8)->getPiece());
-            square('h',8)->setPiece(Piece::NONE);
-            break;
-        case Castling::B_QUEENSIDE:
-            square('d',8)->setPiece(square('a',8)->getPiece());
-            square('a',8)->setPiece(Piece::NONE);
-            break;
-    }
-
-    proceedToNextTurn();
-}
-
-
-void ChessBoardWindow::think() {
-    stockfish->send("go");
-    ui->statusBar->showMessage("Calcul du prochain coup...");
-}
-
-void ChessBoardWindow::queryFEN() {
-    stockfish->send("d");
-}
 
 void ChessBoardWindow::nextTurn() {
     if(turn == Turn::WHITE)
@@ -424,6 +418,32 @@ void ChessBoardWindow::nextTurn() {
 
 Square* ChessBoardWindow::square(char col, int row) {
     return &board[col-'a'][row-1];
+}
+
+/// =========================================================================
+///                            STOCKFISH QUERIES
+/// =========================================================================
+
+void ChessBoardWindow::think() {
+    stockfish->send("go");
+    ui->statusBar->showMessage("Calcul du prochain coup...");
+}
+
+void ChessBoardWindow::queryFEN() {
+    stockfish->send("d");
+}
+
+void ChessBoardWindow::setDifficulty(int dif) {
+    stockfish->setELO(dif);
+}
+
+void ChessBoardWindow::updateLegalMoves() {
+    lockChessboard = true;
+    ui->statusBar->showMessage("Calcul des coups légaux...");
+
+    legalMoves.clear();
+
+    stockfish->send("go perft 1");
 }
 
 /// =========================================================================
@@ -471,18 +491,21 @@ void ChessBoardWindow::allLegalMovesReceived(int n) {
         proceedToNextTurn();
         return;
     }
-    stockfish->send("d");
+    queryFEN();
 }
 
 void ChessBoardWindow::receivedFEN(QString f) {
     fen = f;
+    QStringList details = fen.split(" ");
+    if(details.at(3) != "-")
+        enpassant = details.at(3);
 }
 
 void ChessBoardWindow::receivedCheckers(QString c) {
     if(c.length()>1) {
         QStringList checkers = c.split(" ");
         for(QString chk : checkers)
-            checkersSquares.append(Square(chk[0].toLatin1()-'a', chk[1].toLatin1()-'1'));
+            checkersSquares.append(Square(chk));
         updateBoard();
     }
 
@@ -490,13 +513,6 @@ void ChessBoardWindow::receivedCheckers(QString c) {
     ui->statusBar->showMessage("En attente du prochain coup.");
 }
 
-/// =========================================================================
-///                             STOCKFISH OPTIONS
-/// =========================================================================
-
-void ChessBoardWindow::setDifficulty(int dif) {
-    stockfish->setELO(dif);
-}
 
 /// =========================================================================
 ///                             WINDOW MANAGEMENT

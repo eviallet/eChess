@@ -79,7 +79,8 @@ private:
 
     Square lastFrom;
     Square lastTo;
-    Square *lastClick;
+    QString enpassant;
+    QString lastClick;
     QList<Square> checkersSquares;
 
     char lastPawnPromotion = ' ';

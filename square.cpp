@@ -8,6 +8,12 @@ Square::Square() : QVariant() {
 
 }
 
+Square::Square(QString str) : QVariant() {
+    this->col = str[0].toLatin1();
+    this->row = str[1].toLatin1()-'1';
+    this->piece = Piece::NONE;
+}
+
 Square::Square(int null) : QVariant() {
     this->col = null;
     this->row = null;

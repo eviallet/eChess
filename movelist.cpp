@@ -62,6 +62,13 @@ bool MoveList::contains(Square from, Square to) {
     return false;
 }
 
+bool MoveList::contains(QString from, Square to) {
+    for(int i = 0; i < moves.size(); i++)
+        if(moves[i]->from == from && moves[i]->to == to)
+            return true;
+    return false;
+}
+
 bool MoveList::contains(Square to) {
     for(int i = 0; i < moves.size(); i++)
         if(moves[i]->to == to)
